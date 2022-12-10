@@ -1,0 +1,122 @@
+---
+title: "UGR Supervivencia Tema 4"
+author: "franmarq@gmail.com"
+date: '2022-12-08'
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(magrittr)
+library(dplyr)
+library(forcats)
+library(survival)
+library(survminer)
+library(biostat3)
+library(discSurv)
+library(ggplot2)
+library(bindrcpp)
+```
+
+Lectura de la data
+
+```{r dataT4}
+sida<-read.csv("sida.csv",header = TRUE)
+str(sida)
+attach(sida)
+summary(sida)
+```
+
+Obtener para cada paciente su tiempo de participación (en meses), indicando si se
+trata de un dato completo o censurado.
+
+```{r tablafreq}
+table(Censura)
+table(Meses)
+t1<- table(Censura, Meses)
+t1
+
+```
+
+Construir la tabla de vida considerando semestres como intervalos de tiempo.
+
+En primer lugar obtenemos la variable semestre
+```{r semestre}
+sida$semestre<- as.numeric(floor(sida$Meses/6)+1)
+table(sida$semestre)
+table(sida$Meses)
+table(sida$Tratamiento,Censura)
+```
+
+
+```{r tablavida}
+
+LifeTabUnempDur <- lifeTable(dataShort = sida, timeColumn = "semestre", 
+eventColumn = "Censura")
+LifeTabUnempDur
+
+```
+
+
+Estimar la función de supervivencia mediante el estimador Kaplan-Meier. 
+
+```{r estkaplanM}
+sida.surv <- Surv(sida$semestre, sida$Censura)  #Creando objeto tipo Surv
+#sida.surv.mes <- Surv(sida$Meses, sida$Censura)  
+
+sida.km <- survfit(sida.surv ~ 1, data = sida, type = "kaplan-meier")  #Estimación Kaplan Meier
+sida.km
+summary(sida.km)
+
+#sida.km.mes <- survfit(sida.surv.mes ~ 1, data = sida, type = "kaplan-meier")  #Estimación Kaplan Meier
+#summary(sida.km.mes)
+
+```
+
+La estimación devuelve los siguientes valores:
+
+time : Tiempo de la observación
+n.risk : El número de sujetos en riesgo.
+n.evento : El número de sujetos que presentaron el evento.
+survival : La estimación de la función de supervivencia.
+std.err : La desviación estándar de la estimación.
+lower y upper CI* : Los intervalos de confianza para la estimación.
+
+
+
+Obtener una estimación de los errores e interpretar los resultados.
+
+```{r estmerrores}
+sida.km2 <- survfit(sida.surv ~ 1, data = sida, type = "kaplan-meier",
+                   error = "tsiatis", conf.type = "log-log", conf.int = 0.99)
+summary(sida.km2)
+
+```
+
+Obtener las curvas de supervivencia de los datos clasificados por grupos según el
+tratamiento y compararlas. Explicar los resultados.
+
+
+```{r curvsuper}
+ggsurvplot(fit = sida.km, data = sida, conf.int = T, title = "Curva de Supervivencia", 
+    xlab = "Tiempo", ylab = "Probabilidad de supervivencia", legend.title = "Estimación", 
+    legend.labs = "Kaplan-Meier")
+
+#ggsurvplot(fit = sida.km.mes, data = sida, conf.int = T, title = "Curva de Supervivencia", 
+#    xlab = "Tiempo", ylab = "Probabilidad de supervivencia", legend.title = "Estimación", 
+#    legend.labs = "Kaplan-Meier")
+
+
+```
+
+
+
+```{r survgroup}
+survfit(sida.surv ~ Tratamiento, sida, conf.type = "log-log") %>%
+ggsurvplot(title = "Supervivencia por género ", conf.int = T, conf.int.style = "step", legend.title = "Tratamiento", legend.labs = c("AZT", "Placebo"))
+
+#survfit(sida.surv.mes ~ Tratamiento, sida, conf.type = "log-log") %>%
+#ggsurvplot(title = "Supervivencia por género ", conf.int = T,conf.int.style = "step", legend.title = #"Tratamiento", legend.labs = c("AZT", "Placebo"))
+
+
+```
